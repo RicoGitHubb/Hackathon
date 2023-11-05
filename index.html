@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="utf-8">
+    <title>Chatbot</title>
+    <link rel="stylesheet" href="static/style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@48,400,0,0" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@48,400,1,0" />
+</head>
+<body>
+    <!-- The button to toggle chatbot visibility -->
+    <button class="chatbot-toggler"> 
+        <!-- Use dynamic class for the icon -->
+        <span class="material-symbols-rounded chatbot-toggle-icon">mode_comment</span>
+        
+    </button>
+    <!-- The chatbot container -->
+    <div class="chatbot">
+        <header>
+            <!-- Updated the name from 'Chatbot' to 'Airy' -->
+            <h2>Your interactive learning adventure starts here.</h2>
+            <span class="close-btn material-symbols-outlined">close</span>
+        </header>
+        <!-- The chat window where messages will appear -->
+        <ul class="chatbox" id="chat-window">
+            <!-- Messages will be added here dynamically -->
+        </ul>
+        <!-- The input area for user messages -->
+        <div class="chat-input" style="background-color: #f2f2f2;">
+            <textarea placeholder="Enter a message..." spellcheck="false" required id="message-input"></textarea>
+            <span display="none" id="send-btn" class="material-symbols-rounded" style="display:none;">send</span>
+            <!-- Updated the button to have an id for easier reference -->
+            <button id="choose-file-btn" onclick="document.getElementById('file-input').click()" class="upload-btn">Choose PDF</button>
+            <!-- Ensure this button is hidden by default using inline CSS -->
+            <button id="send-file-btn" onclick="uploadFile()" class="send-file-btn" style="display:none;" disabled>Send PDF</button>
+            <input type="file" id="file-input" class="offscreen" onchange="fileSelected()" style="display:none;">
+        </div>                   
+    </div>
+
+    <script>
+        // Function to initialize a conversation and fetch a conversation_id from the server
+        function initializeChat() {
+            // This should be a call to the server to get a real conversation ID
+            // For now, we're generating a random one for demonstration purposes
+            var conversation_id = Math.random().toString(36).substring(2, 15);
+            sessionStorage.setItem('conversation_id', conversation_id);
+            addMessageToWindow('bot', 'Welcome to the future of learning! My name is Airy, your personalized AI tutor. Explore any subject, upload PDFs to discuss or test your knowledge with custom quizzes.');
+        }
+
+        // Function to send a message to the chatbot
+        function sendMessage() {
+            var messageInput = document.getElementById('message-input');
+            var message = messageInput.value.trim(); // Trim whitespace
+            if (message) { // Make sure there's a message to send
+                addMessageToWindow('user', message); // Add user message to window
+                messageInput.value = ''; // Clear the input
+
+                // Retrieve conversation_id from the session storage
+                var conversation_id = sessionStorage.getItem('conversation_id') || '123'; // Use a default if not set
+
+                try {
+                    var payload = JSON.stringify({
+                        message: message,
+                        conversation_id: conversation_id // Make sure to send a valid conversation_id
+                    });
+                    fetch('/converse', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: payload
+                    })
+                    .then(response => response.json()) // Remove the response.ok check to handle in the catch block
+                    .then(data => addMessageToWindow('bot', data.response))
+                    .catch(error => {
+                        console.error('Error:', error);
+                        addMessageToWindow('bot', 'An error occurred while sending your message.');
+                    });
+                } catch (error) {
+                    console.error('Failed to create JSON payload', error);
+                    addMessageToWindow('bot', 'There was an error processing your message.');
+                }
+            }
+        }
+
+        // Function to upload a file to the chatbot
+        function uploadFile() {
+            var fileInput = document.getElementById('file-input');
+            var file = fileInput.files[0];
+            var formData = new FormData();
+            formData.append('file', file);
+            // Retrieve conversation_id from the session storage
+            var conversation_id = sessionStorage.getItem('conversation_id') || '123'; // Use a default if not set
+            formData.append('conversation_id', conversation_id);
+
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Success:', data);
+                addMessageToWindow('user', 'PDF sent successfully.');
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                addMessageToWindow('user', 'Failed to send PDF.');
+            });
+        }
+
+        // Function to add messages to the chat window
+        function addMessageToWindow(sender, message) {
+            var chatWindow = document.getElementById('chat-window');
+            var messageElement = document.createElement('li');
+            messageElement.classList.add('chat', sender === 'user' ? 'outgoing' : 'incoming');
+            if (sender !== 'user') {
+            var imgElement = document.createElement('img');
+            imgElement.src = 'static/images/chatbot-icon.png'; // Path to your custom icon
+            imgElement.alt = 'Chatbot Icon';
+            imgElement.className = 'chatbot-icon'; // Add a class for styling
+            messageElement.appendChild(imgElement);
+        }
+
+            var messageParagraph = document.createElement('p');
+            messageParagraph.textContent = message;
+            messageElement.appendChild(messageParagraph);
+            chatWindow.appendChild(messageElement);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+        }
+
+        document.getElementById('send-btn').addEventListener('click', sendMessage);
+        document.getElementById('message-input').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        // Event listeners for opening and closing the chatbot
+        document.querySelector('.chatbot-toggler').addEventListener('click', function() {
+            document.body.classList.toggle('show-chatbot');
+            // Toggle the icon
+            var toggleIcon = document.querySelector('.chatbot-toggle-icon');
+            if(document.body.classList.contains('show-chatbot')) {
+                toggleIcon.textContent = 'close'; // Change to 'X' icon when chat is open
+            } else {
+                toggleIcon.textContent = 'mode_comment'; // Change to chat icon when chat is closed
+            }
+            // Initialize chat when the chatbot is toggled for the first time
+            if (!sessionStorage.getItem('isChatInitialized')) {
+                sessionStorage.setItem('isChatInitialized', 'true'); // Set the flag in session storage
+                initializeChat(); // Initialize the chat and fetch conversation_id
+            }
+        });
+
+        document.querySelector('.close-btn').addEventListener('click', function() {
+            document.body.classList.remove('show-chatbot');
+            // Reset the icon when chat is closed
+            document.querySelector('.chatbot-toggle-icon').textContent = 'mode_comment';
+        });
+
+        // Function to handle file selection
+        function fileSelected() {
+            var fileInput = document.getElementById('file-input');
+            var sendFileBtn = document.getElementById('send-file-btn');
+            if (fileInput.files.length > 0) {
+                sendFileBtn.disabled = false;
+            } else {
+                sendFileBtn.disabled = true;
+            }
+        }
+        // Function to handle file selection
+        function fileSelected() {
+            var fileInput = document.getElementById('file-input');
+            var chooseFileBtn = document.getElementById('choose-file-btn');
+            var sendFileBtn = document.getElementById('send-file-btn');
+            
+            if (fileInput.files.length > 0) {
+                sendFileBtn.disabled = false;
+                chooseFileBtn.style.display = 'none'; // Hide the choose file button
+                sendFileBtn.style.display = 'block'; // Show the send file button
+            } else {
+                sendFileBtn.disabled = true;
+                chooseFileBtn.style.display = 'block'; // Show the choose file button
+                sendFileBtn.style.display = 'none'; // Hide the send file button
+            }
+        }
+    </script>
+</body>
+</html>
